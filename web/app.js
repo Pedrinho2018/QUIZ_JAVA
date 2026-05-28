@@ -10,14 +10,19 @@ const state = {
   payload: null,
   timerId: null,
   explanationDelayId: null,
-  explanationCountdown: 0
+  explanationCountdown: 0,
+  selectedTenure: "1 - 3 anos"
 };
 
-const DEFAULT_TOTAL_QUESTIONS = 100;
+const DEFAULT_TOTAL_QUESTIONS = 20;
+
+function questionTimeLimit(question) {
+  return Math.max(1, question.timeLimit || question.timeLeft || 1);
+}
 
 const journey = [
   { title: "Identificacao", desc: "Quem e voce na empresa" },
-  { title: "Quiz interativo", desc: "100 cenarios de fraude" },
+  { title: "Quiz interativo", desc: "20 cenarios por perfil" },
   { title: "Resultado", desc: "Perfil de risco pessoal" },
   { title: "Plano de acao", desc: "Recomendacoes praticas" }
 ];
@@ -134,7 +139,7 @@ function updateQuizTimerUI() {
   const timerRing = document.getElementById("timer-ring");
   const warningBar = document.getElementById("time-warning");
 
-  const timerPercent = clamp((question.timeLeft / 25) * 100, 0, 100);
+  const timerPercent = clamp((question.timeLeft / questionTimeLimit(question)) * 100, 0, 100);
   const tone = question.timeLeft <= 5 ? "warning" : question.timeLeft <= 10 ? "caution" : "";
 
   if (timerValue) {
@@ -247,6 +252,7 @@ async function handleStart(event) {
   const formData = new FormData(event.currentTarget);
   const nome = String(formData.get("nome") || "").trim();
   const setor = String(formData.get("setor") || "").trim();
+  const cargo = String(formData.get("cargo") || "").trim();
 
   if (!nome) {
     state.formError = "Informe seu nome para iniciar o treinamento.";
@@ -256,6 +262,12 @@ async function handleStart(event) {
 
   if (!setor) {
     state.formError = "Selecione um departamento para continuar.";
+    render();
+    return;
+  }
+
+  if (!cargo) {
+    state.formError = "Selecione um cargo para personalizar as perguntas.";
     render();
     return;
   }
@@ -301,6 +313,15 @@ async function restart() {
   }
 }
 
+async function finishQuiz() {
+  try {
+    applyPayload(await request("/api/finish", { method: "POST", body: new URLSearchParams() }));
+  } catch (error) {
+    state.error = error.message;
+    render();
+  }
+}
+
 function topbar({ player, stepTag, showProgress, progress, progressLabel }) {
   const progressBlock = showProgress
     ? `
@@ -322,7 +343,7 @@ function topbar({ player, stepTag, showProgress, progress, progressLabel }) {
         <div class="tb-avatar">${escapeHtml(initials(player.name))}</div>
         <div class="tb-user">
           <strong>${escapeHtml(player.name)}</strong>
-          <span>${escapeHtml(player.department)}</span>
+          <span>${escapeHtml(player.department)} · ${escapeHtml(player.role || "Perfil geral")}</span>
         </div>
       </div>`
     : `<div class="tb-meta"><div class="tb-status"><span class="status-dot"></span> Programa corporativo</div></div>`;
@@ -446,7 +467,7 @@ function identifyScreen() {
                 </div>
                 <div class="field full">
                   <label for="email">E-mail corporativo</label>
-                  <input id="email" placeholder="marina.castelo@empresa.com.br">
+                  <input id="email" name="email" type="email" placeholder="marina.castelo@empresa.com.br">
                 </div>
                 <div class="field">
                   <label for="setor">Departamento</label>
@@ -462,7 +483,7 @@ function identifyScreen() {
                 </div>
                 <div class="field">
                   <label for="cargo">Cargo</label>
-                  <select id="cargo">
+                  <select id="cargo" name="cargo">
                     <option>Analista Pleno</option>
                     <option>Coordenador</option>
                     <option>Especialista</option>
@@ -470,14 +491,35 @@ function identifyScreen() {
                     <option>Estagiario</option>
                   </select>
                 </div>
+                <div class="field">
+                  <label for="quantidade">Quantidade de perguntas</label>
+                  <select id="quantidade" name="quantidade">
+                    <option value="5">5 perguntas</option>
+                    <option value="10" selected>10 perguntas</option>
+                    <option value="15">15 perguntas</option>
+                    <option value="20">20 perguntas</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="dificuldade">Dificuldade</label>
+                  <select id="dificuldade" name="dificuldade">
+                    <option value="Todas" selected>Todas</option>
+                    <option value="Fácil">Fácil</option>
+                    <option value="Médio">Médio</option>
+                    <option value="Difícil">Difícil</option>
+                  </select>
+                </div>
                 <div class="field full">
                   <label>Tempo de empresa</label>
+                  <input type="hidden" id="tempo-empresa" name="tempoEmpresa" value="${escapeHtml(state.selectedTenure)}">
                   <div class="tenure-row">
-                    <button type="button" class="tenure-chip">&lt; 6 meses</button>
-                    <button type="button" class="tenure-chip">6 m - 1 ano</button>
-                    <button type="button" class="tenure-chip selected">1 - 3 anos</button>
-                    <button type="button" class="tenure-chip">3 - 5 anos</button>
-                    <button type="button" class="tenure-chip">5+ anos</button>
+                    ${["< 6 meses", "6 m - 1 ano", "1 - 3 anos", "3 - 5 anos", "5+ anos"].map((tenure) => `
+                      <button
+                        type="button"
+                        class="tenure-chip ${state.selectedTenure === tenure ? "selected" : ""}"
+                        data-tenure="${escapeHtml(tenure)}"
+                      >${escapeHtml(tenure)}</button>
+                    `).join("")}
                   </div>
                 </div>
               </div>
@@ -502,67 +544,149 @@ function identifyScreen() {
 function scenarioTemplate(question) {
   const text = `${question.category} ${question.situation}`.toLowerCase();
 
+  const makeScene = (channel, sender, meta, badge, highlight, footer) => ({
+    channel,
+    sender,
+    meta,
+    badge,
+    subject: question.category,
+    body: [
+      question.situation,
+      "Observe canal, urgencia, pedido de dados, permissao solicitada e quebra de processo antes de responder."
+    ],
+    highlight,
+    footer
+  });
+
+  if (text.includes("whatsapp") || text.includes("aplicativo")) {
+    return makeScene(
+      "Mensagem instantanea",
+      "Contato com foto conhecida",
+      "fora do canal oficial · agora",
+      "impersonacao",
+      "Foto e nome conhecidos nao provam identidade.",
+      "Sinal de risco: canal informal + urgencia"
+    );
+  }
+
+  if (text.includes("sms")) {
+    return makeScene(
+      "SMS recebido",
+      "Aviso automatico",
+      "numero desconhecido · agora",
+      "smishing",
+      "Links por SMS devem ser tratados como suspeitos ate validacao.",
+      "Sinal de risco: link curto + ameaca de bloqueio"
+    );
+  }
+
+  if (text.includes("reuniao") || text.includes("convite")) {
+    return makeScene(
+      "Agenda corporativa",
+      "Convite externo",
+      "sem pauta clara · hoje",
+      "reuniao falsa",
+      "Convites tambem podem capturar credenciais ou instalar malware.",
+      "Sinal de risco: link externo + urgencia"
+    );
+  }
+
+  if (text.includes("ia ") || text.includes("generativa")) {
+    return makeScene(
+      "Ferramenta externa",
+      "Assistente online",
+      "fora do ambiente corporativo",
+      "exposicao de dados",
+      "Dados reais nao devem ser colados em ferramenta nao aprovada.",
+      "Sinal de risco: dado sensivel em servico externo"
+    );
+  }
+
+  if (text.includes("visitante") || text.includes("fotograf")) {
+    return makeScene(
+      "Atendimento presencial",
+      "Visitante autorizado",
+      "area interna · durante visita",
+      "vazamento fisico",
+      "Autorizacao de visita nao autoriza captura de telas ou documentos.",
+      "Sinal de risco: foto de informacao interna"
+    );
+  }
+
+  if (text.includes("portal") || text.includes("site") || text.includes("navegador")) {
+    return makeScene(
+      "Portal web",
+      "Pagina parecida com a oficial",
+      "link recebido · acesso externo",
+      "site falso",
+      "Endereco, certificado e origem precisam ser conferidos antes do login.",
+      "Sinal de risco: pagina parecida + pedido de credencial"
+    );
+  }
+
+  if (text.includes("contrato") || text.includes("assinatura")) {
+    return makeScene(
+      "Documento corporativo",
+      "Parceiro de negocio",
+      "prazo curto · revisao pendente",
+      "documento alterado",
+      "Pressa para assinar sem comparar versoes aumenta risco de fraude.",
+      "Sinal de risco: mudanca discreta + prazo artificial"
+    );
+  }
+
+  if (text.includes("terceiro") || text.includes("administrativa") || text.includes("privilegiado") || text.includes("permiss")) {
+    return makeScene(
+      "Solicitacao de acesso",
+      "Prestador / suporte",
+      "chamado incompleto · urgente",
+      "acesso indevido",
+      "Permissoes devem ter escopo, prazo, aprovacao e registro.",
+      "Sinal de risco: acesso amplo sem controle"
+    );
+  }
+
   if (text.includes("senha") || text.includes("autentic") || text.includes("suporte")) {
-    return {
-      channel: "Ligacao suspeita",
-      sender: "Suporte tecnico terceirizado",
-      meta: "ramal externo · agora",
-      badge: "engenharia social",
-      subject: "Precisamos do codigo MFA para corrigir uma inconsistenca de acesso",
-      body: [
-        "A pessoa informa seu nome, setor e diz que ha uma falha urgente no acesso corporativo.",
-        "Ela pede o codigo de autenticacao em duas etapas e pressiona para voce informar antes do encerramento da chamada."
-      ],
-      highlight: "Suporte legitimo nao pede codigo MFA ao usuario final.",
-      footer: "Sinal de risco: pressao + pedido de dado sensivel"
-    };
+    return makeScene(
+      "Ligacao suspeita",
+      "Suporte tecnico terceirizado",
+      "ramal externo · agora",
+      "engenharia social",
+      "Suporte legitimo nao pede senha ou codigo MFA ao usuario final.",
+      "Sinal de risco: pressao + pedido de dado sensivel"
+    );
   }
 
   if (text.includes("pendrive") || text.includes("recepc")) {
-    return {
-      channel: "Objeto encontrado",
-      sender: "Midia sem identificacao",
-      meta: "recepcao principal · hoje",
-      badge: "dispositivo fisico",
-      subject: "Pendrive com etiqueta 'folha salarial' deixado sem dono aparente",
-      body: [
-        "O item parece inocente e pode despertar curiosidade para descobrir o proprietario.",
-        "Mesmo assim, midias desconhecidas podem carregar malware ou scripts para execucao automatica."
-      ],
-      highlight: "Conectar para descobrir o conteudo ja e um risco.",
-      footer: "Sinal de risco: engenharia por curiosidade"
-    };
+    return makeScene(
+      "Objeto encontrado",
+      "Midia sem identificacao",
+      "recepcao principal · hoje",
+      "dispositivo fisico",
+      "Conectar para descobrir o conteudo ja e um risco.",
+      "Sinal de risco: engenharia por curiosidade"
+    );
   }
 
   if (text.includes("pix") || text.includes("boleto") || text.includes("fornecedor") || text.includes("pagamento") || text.includes("conta banc")) {
-    return {
-      channel: "Solicitacao financeira",
-      sender: "Fornecedor / diretoria",
-      meta: "urgente · vencimento hoje",
-      badge: "pagamento",
-      subject: "Atualizacao de conta ou pagamento imediato fora do fluxo habitual",
-      body: [
-        "A mensagem apela para urgencia, perda de prazo ou multa imediata.",
-        "Ela tenta empurrar uma excecao de processo para evitar a validacao por duplo controle."
-      ],
-      highlight: "Mudanca de conta e pressao por pagamento sao combinacoes classicas de fraude.",
-      footer: "Sinal de risco: quebra de processo"
-    };
+    return makeScene(
+      "Solicitacao financeira",
+      "Fornecedor / diretoria",
+      "urgente · vencimento hoje",
+      "pagamento",
+      "Mudanca de conta e pressao por pagamento sao combinacoes classicas de fraude.",
+      "Sinal de risco: quebra de processo"
+    );
   }
 
-  return {
-    channel: "E-mail corporativo",
-    sender: "RH - Recursos Humanos",
-    meta: "para voce · hoje, 09:42",
-    badge: "phishing por e-mail",
-    subject: "Ultima chamada: confirme seus dados em 24h ou seu acesso sera bloqueado",
-    body: [
-      "A mensagem fala em inconsistencias de cadastro e usa tom de urgencia para pressionar a acao imediata.",
-      "O remetente e parecido com o oficial, mas o dominio, o link e o anexo indicam que a situacao e suspeita."
-    ],
-    highlight: "Links encurtados, dominio estranho e ameaca de bloqueio merecem verificacao fora do e-mail.",
-    footer: "Sinal de risco: urgencia + imitacao de remetente"
-  };
+  return makeScene(
+    "E-mail corporativo",
+    "Remetente externo",
+    "para voce · hoje",
+    "phishing por e-mail",
+    "Dominio, link, anexo e urgencia devem ser validados fora da mensagem.",
+    "Sinal de risco: urgencia + pedido fora do processo"
+  );
 }
 
 function quizCategories(currentCategory) {
@@ -629,7 +753,7 @@ function scoreSidebar(payload, options) {
 function quizScreen(payload) {
   const question = payload.question;
   const progress = percent(question.number - 1, question.total);
-  const timerPercent = clamp((question.timeLeft / 25) * 100, 0, 100);
+  const timerPercent = clamp((question.timeLeft / questionTimeLimit(question)) * 100, 0, 100);
   const warning = question.timeLeft <= 5 ? "warning" : question.timeLeft <= 10 ? "caution" : "";
   const scene = scenarioTemplate(question);
 
@@ -672,7 +796,7 @@ function quizScreen(payload) {
             </div>
           </div>
           <div class="timer-shell ${warning}" id="timer-shell">
-            <button class="btn btn-ghost small">Sinalizar para revisao</button>
+            <button class="btn btn-ghost small" id="finish-quiz" type="button">Ver resultado</button>
             <div class="timer-card">
               <div>
                 <div class="eyebrow">Tempo</div>
@@ -815,6 +939,7 @@ function feedbackScreen(payload) {
               </div>
             </div>
             <div class="feedback-actions">
+              <button class="btn btn-ghost btn-lg" id="finish-quiz" type="button">Ver resultado agora</button>
               <button class="btn btn-blue btn-lg next-button ${state.explanationCountdown > 0 ? "locked" : "ready"}" id="next-question" ${nextDisabled}>${nextLabel}</button>
             </div>
           </article>
@@ -1011,6 +1136,19 @@ function bindEvents() {
     identifyForm.addEventListener("submit", handleStart);
   }
 
+  document.querySelectorAll("[data-tenure]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.selectedTenure = button.getAttribute("data-tenure") || state.selectedTenure;
+      document.querySelectorAll("[data-tenure]").forEach((chip) => {
+        chip.classList.toggle("selected", chip === button);
+      });
+      const tenureInput = document.getElementById("tempo-empresa");
+      if (tenureInput) {
+        tenureInput.value = state.selectedTenure;
+      }
+    });
+  });
+
   document.querySelectorAll("[data-answer]").forEach((button) => {
     button.addEventListener("click", () => {
       state.selectedAnswer = Number(button.getAttribute("data-answer"));
@@ -1026,6 +1164,11 @@ function bindEvents() {
   const nextQuestion = document.getElementById("next-question");
   if (nextQuestion) {
     nextQuestion.addEventListener("click", goNext);
+  }
+
+  const finishQuizButton = document.getElementById("finish-quiz");
+  if (finishQuizButton) {
+    finishQuizButton.addEventListener("click", finishQuiz);
   }
 
   const restartQuiz = document.getElementById("restart-quiz");

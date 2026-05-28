@@ -127,6 +127,9 @@ public final class ServidorWeb {
             if ("/api/next".equals(requisicao.caminho())) {
                 return avancarFluxo(requisicao);
             }
+            if ("/api/finish".equals(requisicao.caminho())) {
+                return finalizarQuiz(requisicao);
+            }
             if ("/api/restart".equals(requisicao.caminho())) {
                 return reiniciarQuiz(requisicao);
             }
@@ -143,9 +146,14 @@ public final class ServidorWeb {
         exigirMetodo(requisicao, "POST");
         Map<String, String> form = lerFormulario(requisicao.corpoTexto());
         String nome = valorObrigatorio(form, "nome");
+        String email = form.containsKey("email") ? form.get("email").trim() : "";
         String setor = valorObrigatorio(form, "setor");
+        String cargo = valorObrigatorio(form, "cargo");
+        String dificuldade = form.containsKey("dificuldade") ? form.get("dificuldade") : "";
+        int quantidadePerguntas = parseInt(form.get("quantidade"), 20);
 
-        SessaoQuiz sessao = new SessaoQuiz(new Jogador(nome, setor), Rodada.criarRodadaPadrao());
+        SessaoQuiz sessao = new SessaoQuiz(new Jogador(nome, email, setor, cargo),
+                Rodada.criarRodadaParaPerfil(setor, cargo, quantidadePerguntas, dificuldade));
         String sessaoId = requisicao.cookie(COOKIE_NOME);
         if (sessaoId == null || sessaoId.trim().isEmpty()) {
             sessaoId = UUID.randomUUID().toString();
@@ -208,6 +216,20 @@ public final class ServidorWeb {
         sessao.registrarInicioPergunta();
         sessao.definirTelaAtual("quiz");
         return Resposta.json(200, montarEstadoJson("quiz", sessao));
+    }
+
+    private static Resposta finalizarQuiz(Requisicao requisicao) {
+        exigirMetodo(requisicao, "POST");
+        SessaoQuiz sessao = obterSessaoObrigatoria(requisicao);
+
+        if (sessao.getUltimoResultado() != null) {
+            sessao.getRodada().avancarPergunta();
+            sessao.setUltimoResultado(null);
+        }
+
+        sessao.getRodada().finalizar();
+        sessao.definirTelaAtual("result");
+        return Resposta.json(200, montarEstadoJson("result", sessao));
     }
 
     private static Resposta reiniciarQuiz(Requisicao requisicao) {
@@ -368,7 +390,11 @@ public final class ServidorWeb {
             json.append(",\"player\":{");
             adicionarCampo(json, "name", sessao.getJogador().getNome());
             json.append(",");
+            adicionarCampo(json, "email", sessao.getJogador().getEmail());
+            json.append(",");
             adicionarCampo(json, "department", sessao.getJogador().getSetor());
+            json.append(",");
+            adicionarCampo(json, "role", sessao.getJogador().getCargo());
             json.append("}");
         }
 
@@ -413,6 +439,7 @@ public final class ServidorWeb {
         json.append(",\"number\":").append(numeroPergunta);
         json.append(",\"total\":").append(totalPerguntas);
         json.append(",\"timeLeft\":").append(tempoRestante);
+        json.append(",\"timeLimit\":").append(pergunta.getTempoLimiteSegundos());
         json.append(",");
         adicionarCampo(json, "situation", pergunta.getSituacao());
         json.append(",\"alternatives\":[");
@@ -469,7 +496,11 @@ public final class ServidorWeb {
         json.append("{");
         adicionarCampo(json, "name", jogador.getNome());
         json.append(",");
+        adicionarCampo(json, "email", jogador.getEmail());
+        json.append(",");
         adicionarCampo(json, "department", jogador.getSetor());
+        json.append(",");
+        adicionarCampo(json, "role", jogador.getCargo());
         json.append(",\"score\":").append(placar.getPontuacao());
         json.append(",\"hits\":").append(placar.getAcertos());
         json.append(",\"total\":").append(rodada.getTotalPerguntas());

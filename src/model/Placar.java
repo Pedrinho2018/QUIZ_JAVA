@@ -5,9 +5,8 @@ package model;
  * Placar cuida apenas de acumular pontos e calcular a classificação do jogador.
  * Isso segue o princípio de que cada classe deve ter uma responsabilidade bem definida.
  *
- * Note que Placar recebe objetos do tipo Pergunta no método registrarAcerto —
- * isso é POLIMORFISMO: não importa se é PerguntaFacil ou PerguntaDificil,
- * o Placar chama getPontuacao() e o objeto correto responde com o valor certo.
+ * Note que Placar recebe objetos do tipo Pergunta no método registrarAcerto.
+ * A pontuação vem da pergunta carregada do CSV.
  */
 public class Placar {
 
@@ -19,8 +18,8 @@ public class Placar {
     /*
      * CONCEITO: POLIMORFISMO NO USO
      * 'pergunta' pode ser qualquer subtipo de Pergunta (Fácil ou Difícil).
-     * pergunta.getPontuacao() executa o método da subclasse correta automaticamente.
-     * O Placar não precisa saber qual tipo de pergunta é — apenas pede a pontuação.
+     * pergunta.getPontuacao() retorna a pontuação definida no CSV.
+     * O Placar não precisa conhecer o arquivo — apenas pede a pontuação.
      */
     public void registrarAcerto(Pergunta pergunta) {
         pontuacao += pergunta.getPontuacao(); // polimorfismo: 10 ou 20 dependendo do tipo

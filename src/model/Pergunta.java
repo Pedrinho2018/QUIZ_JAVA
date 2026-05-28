@@ -4,7 +4,8 @@ package model;
  * CONCEITO: CLASSE ABSTRATA
  * Uma classe abstrata é um "molde incompleto" — ela define atributos e comportamentos
  * comuns a um grupo de objetos, mas não pode ser instanciada diretamente.
- * Ex: você não pode escrever  new Pergunta(...)  — só pode criar PerguntaFacil ou PerguntaDificil.
+ * Ex: você não pode escrever  new Pergunta(...)  — a aplicação cria PerguntaPersonalizada
+ * a partir das linhas do CSV.
  *
  * Aqui Pergunta define tudo que qualquer pergunta do quiz precisa ter,
  * mas deixa getPontuacao() sem implementação para que cada subclasse decida o valor.
@@ -25,7 +26,7 @@ public abstract class Pergunta {
 
     /*
      * CONCEITO: CONSTRUTOR PROTEGIDO (protected)
-     * 'protected' permite que as subclasses (PerguntaFacil, PerguntaDificil) chamem
+     * 'protected' permite que as subclasses chamem
      * este construtor usando super(...), mas impede que código externo o use diretamente.
      * Isso reforça que Pergunta só existe através de suas subclasses.
      */
@@ -89,7 +90,7 @@ public abstract class Pergunta {
      * 'abstract' significa "toda subclasse DEVE implementar este método".
      * Aqui decidimos que cada tipo de pergunta define sua própria pontuação.
      * Isso é a base do POLIMORFISMO: o mesmo método (getPontuacao) se comporta
-     * diferente dependendo de qual objeto está sendo usado (Fácil=10, Difícil=20).
+     * diferente conforme a pontuação carregada do CSV.
      */
     public abstract int getPontuacao();
 }
