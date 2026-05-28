@@ -4,19 +4,48 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/*
+ * CONCEITO: CLASSE QUE AGREGA OUTROS OBJETOS (Composição)
+ * Rodada contém uma lista de Perguntas e um Placar — ela não herda dessas classes,
+ * mas as usa como partes internas. Isso se chama COMPOSIÇÃO (relação "tem-um").
+ *   Rodada TEM-UM Placar
+ *   Rodada TEM-MUITAS Perguntas
+ *
+ * Também demonstra CLASSE INTERNA ESTÁTICA (ResultadoResposta) e MÉTODO FÁBRICA ESTÁTICO
+ * (criarRodadaPadrao), dois padrões importantes de design orientado a objetos.
+ */
 public class Rodada {
+
+    // List<Pergunta> pode guardar PerguntaFacil E PerguntaDificil no mesmo lugar —
+    // possível porque ambas herdam de Pergunta (polimorfismo de referência).
     private final List<Pergunta> perguntas;
     private final Placar placar;
-    private int indiceAtual;
+    private int indiceAtual; // controla qual pergunta está sendo exibida agora
 
+    /*
+     * CONCEITO: CONSTRUTOR
+     * Recebe a lista de perguntas e cria internamente os objetos de que a rodada depende.
+     * new ArrayList<>(perguntas) faz uma cópia da lista para isolar o estado interno.
+     */
     public Rodada(List<Pergunta> perguntas) {
         this.perguntas = new ArrayList<>(perguntas);
         this.placar = new Placar();
         this.indiceAtual = 0;
     }
 
+    /*
+     * CONCEITO: MÉTODO FÁBRICA ESTÁTICO (static factory method)
+     * 'static' significa que esse método pertence à CLASSE, não a um objeto específico.
+     * Ele é chamado como  Rodada.criarRodadaPadrao()  sem criar um objeto antes.
+     *
+     * Aqui ele monta as 100 perguntas do quiz (20 por setor × 5 setores)
+     * e embaralha a lista antes de retornar a Rodada pronta para jogar.
+     */
     public static Rodada criarRodadaPadrao() {
         List<Pergunta> perguntas = new ArrayList<Pergunta>();
+
+        // Cada linha representa um setor da empresa com seus contextos específicos.
+        // O mesmo molde de pergunta é reutilizado para cada setor — reutilização de código.
         String[][] contextos = new String[][] {
                 { "Financeiro", "pagamento de fornecedor", "nota fiscal", "diretoria financeira" },
                 { "Recursos Humanos", "atualização cadastral", "cadastro funcional", "coordenação de RH" },
@@ -27,10 +56,11 @@ public class Rodada {
 
         for (int i = 0; i < contextos.length; i++) {
             String departamento = contextos[i][0];
-            String processo = contextos[i][1];
-            String ativo = contextos[i][2];
-            String gestor = contextos[i][3];
+            String processo     = contextos[i][1];
+            String ativo        = contextos[i][2];
+            String gestor       = contextos[i][3];
 
+            // 10 perguntas FÁCEIS (10 pts cada) por setor — criadas via métodos auxiliares privados.
             perguntas.add(criarBoletoSuspeito(departamento, processo));
             perguntas.add(criarChefeImpersonado(departamento, gestor));
             perguntas.add(criarLinkEncurtado(departamento, ativo));
@@ -42,6 +72,7 @@ public class Rodada {
             perguntas.add(criarComprovanteFalso(departamento, processo));
             perguntas.add(criarConviteReuniaoSuspeito(departamento));
 
+            // 10 perguntas DIFÍCEIS (20 pts cada) por setor.
             perguntas.add(criarPendriveRecepcao(departamento));
             perguntas.add(criarMfaPorTelefone(departamento));
             perguntas.add(criarZipPoliticaInterna(departamento));
@@ -54,10 +85,17 @@ public class Rodada {
             perguntas.add(criarBiometriaOuSelfie(departamento));
         }
 
-        // A rodada final fica com 100 questões para ampliar a cobertura do treinamento.
+        // Collections.shuffle embaralha a lista para que a ordem das perguntas seja aleatória.
         Collections.shuffle(perguntas);
         return new Rodada(perguntas);
     }
+
+    // -------------------------------------------------------------------------
+    // MÉTODOS PRIVADOS DE CRIAÇÃO DE PERGUNTAS
+    // Cada método cria um tipo específico de pergunta (PerguntaFacil ou PerguntaDificil)
+    // com o texto adaptado ao departamento recebido como parâmetro.
+    // 'private static' → só usados dentro desta classe, sem precisar de um objeto.
+    // -------------------------------------------------------------------------
 
     private static Pergunta criarBoletoSuspeito(String departamento, String processo) {
         return new PerguntaFacil(
@@ -377,6 +415,14 @@ public class Rodada {
                 20);
     }
 
+    // -------------------------------------------------------------------------
+    // MÉTODOS DE CONTROLE DO FLUXO DO JOGO
+    // -------------------------------------------------------------------------
+
+    /*
+     * Retorna a pergunta atual ou null se a rodada já acabou.
+     * A verificação estaFinalizada() protege contra acesso fora dos limites da lista.
+     */
     public Pergunta getPerguntaAtual() {
         if (estaFinalizada()) {
             return null;
@@ -384,13 +430,20 @@ public class Rodada {
         return perguntas.get(indiceAtual);
     }
 
+    /*
+     * Processa a resposta do jogador para a pergunta atual.
+     * Retorna um objeto ResultadoResposta com todas as informações do momento
+     * (acertou, tempo esgotado, pontuação acumulada, etc.) para a tela de feedback.
+     *
+     * tempoEsgotado=true cancela qualquer pontuação, mesmo que a resposta seja correta.
+     */
     public ResultadoResposta responderAtual(int indiceSelecionado, boolean tempoEsgotado) {
         Pergunta pergunta = getPerguntaAtual();
         if (pergunta == null) {
             return null;
         }
 
-        // A pontuação só muda quando a alternativa está correta e o tempo não acabou.
+        // Só pontua se respondeu corretamente E dentro do tempo.
         boolean acertou = !tempoEsgotado && pergunta.verificarResposta(indiceSelecionado);
         if (acertou) {
             placar.registrarAcerto(pergunta);
@@ -401,18 +454,20 @@ public class Rodada {
                 acertou,
                 tempoEsgotado,
                 indiceSelecionado,
-                indiceAtual + 1,
+                indiceAtual + 1,        // número da pergunta (base 1 para exibição)
                 perguntas.size(),
                 placar.getPontuacao(),
                 placar.getAcertos());
     }
 
+    // Avança para a próxima pergunta. Não faz nada se a rodada já terminou.
     public void avancarPergunta() {
         if (!estaFinalizada()) {
             indiceAtual++;
         }
     }
 
+    // A rodada termina quando o índice ultrapassa o último elemento da lista.
     public boolean estaFinalizada() {
         return indiceAtual >= perguntas.size();
     }
@@ -425,6 +480,10 @@ public class Rodada {
         return perguntas.size();
     }
 
+    /*
+     * Soma a pontuação máxima possível iterando todas as perguntas.
+     * Usa polimorfismo: getPontuacao() retorna 10 ou 20 conforme o tipo real do objeto.
+     */
     public int getPontuacaoMaxima() {
         int total = 0;
         for (Pergunta pergunta : perguntas) {
@@ -437,16 +496,25 @@ public class Rodada {
         return placar;
     }
 
-    // Guarda o resultado de cada pergunta para a tela de feedback não depender da lógica da rodada.
+    /*
+     * CONCEITO: CLASSE INTERNA ESTÁTICA (static nested class)
+     * ResultadoResposta é declarada dentro de Rodada porque só faz sentido
+     * no contexto do quiz — ela agrupa todas as informações de uma resposta dada.
+     *
+     * 'static' significa que ela não precisa de um objeto Rodada para existir;
+     * pode ser instanciada como  new Rodada.ResultadoResposta(...)  de fora.
+     *
+     * Funciona como um "pacote de dados" imutável (todos os atributos são final).
+     */
     public static class ResultadoResposta {
         private final Pergunta pergunta;
         private final boolean acertou;
         private final boolean tempoEsgotado;
-        private final int indiceSelecionado;
-        private final int numeroPergunta;
-        private final int totalPerguntas;
-        private final int pontuacaoAtual;
-        private final int acertosAtuais;
+        private final int indiceSelecionado;  // qual alternativa o jogador escolheu
+        private final int numeroPergunta;     // posição atual (1 a 100)
+        private final int totalPerguntas;     // total de perguntas na rodada
+        private final int pontuacaoAtual;     // pontuação acumulada até agora
+        private final int acertosAtuais;      // quantidade de acertos até agora
 
         public ResultadoResposta(Pergunta pergunta, boolean acertou, boolean tempoEsgotado, int indiceSelecionado,
                 int numeroPergunta, int totalPerguntas, int pontuacaoAtual, int acertosAtuais) {
@@ -460,36 +528,14 @@ public class Rodada {
             this.acertosAtuais = acertosAtuais;
         }
 
-        public Pergunta getPergunta() {
-            return pergunta;
-        }
-
-        public boolean isAcertou() {
-            return acertou;
-        }
-
-        public boolean isTempoEsgotado() {
-            return tempoEsgotado;
-        }
-
-        public int getIndiceSelecionado() {
-            return indiceSelecionado;
-        }
-
-        public int getNumeroPergunta() {
-            return numeroPergunta;
-        }
-
-        public int getTotalPerguntas() {
-            return totalPerguntas;
-        }
-
-        public int getPontuacaoAtual() {
-            return pontuacaoAtual;
-        }
-
-        public int getAcertosAtuais() {
-            return acertosAtuais;
-        }
+        // Getters — a tela de feedback usa esses métodos para exibir o resultado.
+        public Pergunta getPergunta() { return pergunta; }
+        public boolean isAcertou() { return acertou; }
+        public boolean isTempoEsgotado() { return tempoEsgotado; }
+        public int getIndiceSelecionado() { return indiceSelecionado; }
+        public int getNumeroPergunta() { return numeroPergunta; }
+        public int getTotalPerguntas() { return totalPerguntas; }
+        public int getPontuacaoAtual() { return pontuacaoAtual; }
+        public int getAcertosAtuais() { return acertosAtuais; }
     }
 }

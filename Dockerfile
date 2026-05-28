@@ -5,7 +5,7 @@ COPY src ./src
 COPY web ./web
 
 RUN mkdir -p build && \
-    javac --release 8 -d build src/app/*.java src/model/*.java src/web/*.java
+    javac -encoding UTF-8 --release 8 -d build src/app/*.java src/model/*.java src/web/*.java
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app
