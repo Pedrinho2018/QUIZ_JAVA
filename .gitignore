@@ -1,0 +1,7 @@
+build/
+out/
+*.class
+server_check.out.txt
+server_check.err.txt
+.DS_Store
+Thumbs.db

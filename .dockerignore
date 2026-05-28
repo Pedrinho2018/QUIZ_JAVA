@@ -1,0 +1,9 @@
+build
+out
+referencia
+server_check.err.txt
+server_check.out.txt
+*.class
+*.log
+.git
+.gitignore
