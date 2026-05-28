@@ -1,6 +1,22 @@
 build/
 out/
 *.class
+
+# IDEs/editors
+.idea/
+*.iml
+.vscode/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Docker/runtime data
+data-portainer/
+docker-data/
+*.log
+
 server_check.out.txt
 server_check.err.txt
 .DS_Store
