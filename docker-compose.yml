@@ -6,6 +6,17 @@ services:
     container_name: empresa-segura
     environment:
       PORT: 8080
-    ports:
-      - "${APP_PORT:-8080}:8080"
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-public"
+      - "traefik.http.routers.empresa-segura.rule=Host(`quiz.nortemtsistemas.com.br`)"
+      - "traefik.http.routers.empresa-segura.entrypoints=websecure"
+      - "traefik.http.routers.empresa-segura.tls.certresolver=myresolver"
+      - "traefik.http.services.empresa-segura.loadbalancer.server.port=8080"
     restart: unless-stopped
+
+networks:
+  traefik-public:
+    external: true
