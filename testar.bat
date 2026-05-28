@@ -4,7 +4,7 @@ setlocal
 if not exist build mkdir build
 
 echo Compilando projeto...
-javac -encoding UTF-8 --release 8 -d build src\app\*.java src\model\*.java src\web\*.java
+javac -encoding UTF-8 --release 8 -cp "lib\sqlite-jdbc.jar" -d build src\app\*.java src\model\*.java src\repository\*.java src\web\*.java
 if errorlevel 1 (
     echo.
     echo Erro na compilacao.
@@ -14,7 +14,7 @@ if errorlevel 1 (
 
 echo.
 echo Executando autoteste...
-java -cp build app.Main --self-test
+java -cp "build;lib\sqlite-jdbc.jar" app.Main --self-test
 pause
 
 endlocal

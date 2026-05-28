@@ -1,17 +1,14 @@
 package model;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import repository.PerguntaRepository;
+
 public class Rodada {
 
-    private static final Path ARQUIVO_PERGUNTAS_CSV = Paths.get("data", "perguntas_quiz_ciberseguranca_300.csv");
+    private static final PerguntaRepository PERGUNTA_REPOSITORY = new PerguntaRepository();
 
     private final List<Pergunta> perguntas;
     private final Placar placar;
@@ -24,7 +21,7 @@ public class Rodada {
     }
 
     public static Rodada criarRodadaPadrao() {
-        List<Pergunta> perguntas = carregarPerguntasCsv();
+        List<Pergunta> perguntas = carregarPerguntas();
         Collections.shuffle(perguntas);
         return new Rodada(perguntas);
     }
@@ -38,7 +35,7 @@ public class Rodada {
     }
 
     public static Rodada criarRodadaParaPerfil(String setor, String cargo, int quantidadePerguntas, String dificuldade) {
-        List<Pergunta> perguntas = carregarPerguntasCsv();
+        List<Pergunta> perguntas = carregarPerguntas();
         perguntas = filtrarPorDificuldade(perguntas, dificuldade);
         Collections.shuffle(perguntas);
         int limite = limitarQuantidade(quantidadePerguntas, perguntas.size());
@@ -69,109 +66,8 @@ public class Rodada {
         return Math.max(1, Math.min(quantidade, maximo));
     }
 
-    private static List<Pergunta> carregarPerguntasCsv() {
-        if (!Files.exists(ARQUIVO_PERGUNTAS_CSV)) {
-            throw new IllegalStateException("Arquivo de perguntas nao encontrado: " + ARQUIVO_PERGUNTAS_CSV);
-        }
-
-        List<Pergunta> perguntas = new ArrayList<Pergunta>();
-        try {
-            List<String> linhas = Files.readAllLines(ARQUIVO_PERGUNTAS_CSV, StandardCharsets.UTF_8);
-            for (int i = 1; i < linhas.size(); i++) {
-                String linha = linhas.get(i);
-                if (linha == null || linha.trim().isEmpty()) {
-                    continue;
-                }
-
-                List<String> colunas = separarCsv(linha);
-                if (colunas.size() < 17 || !"sim".equalsIgnoreCase(colunas.get(16).trim())) {
-                    continue;
-                }
-
-                perguntas.add(criarPerguntaCsv(colunas));
-            }
-        } catch (IOException erro) {
-            throw new IllegalStateException("Nao foi possivel ler o arquivo de perguntas CSV.", erro);
-        }
-
-        if (perguntas.isEmpty()) {
-            throw new IllegalStateException("O CSV nao possui perguntas ativas.");
-        }
-        return perguntas;
-    }
-
-    private static Pergunta criarPerguntaCsv(List<String> colunas) {
-        String categoria = juntarCategoria(colunas.get(1), colunas.get(2));
-        String nivel = colunas.get(3).trim();
-        String situacao = colunas.get(4).trim() + " " + colunas.get(5).trim();
-        String[] alternativas = new String[] {
-                colunas.get(6).trim(),
-                colunas.get(7).trim(),
-                colunas.get(8).trim(),
-                colunas.get(9).trim()
-        };
-
-        return new PerguntaPersonalizada(
-                situacao,
-                categoria,
-                nivel,
-                alternativas,
-                indiceRespostaCorreta(colunas.get(10)),
-                colunas.get(11).trim(),
-                parseIntSeguro(colunas.get(15), 40),
-                parseIntSeguro(colunas.get(14), 10));
-    }
-
-    private static List<String> separarCsv(String linha) {
-        List<String> colunas = new ArrayList<String>();
-        StringBuilder atual = new StringBuilder();
-        boolean entreAspas = false;
-
-        for (int i = 0; i < linha.length(); i++) {
-            char caractere = linha.charAt(i);
-            if (caractere == '"') {
-                if (entreAspas && i + 1 < linha.length() && linha.charAt(i + 1) == '"') {
-                    atual.append('"');
-                    i++;
-                } else {
-                    entreAspas = !entreAspas;
-                }
-            } else if (caractere == ';' && !entreAspas) {
-                colunas.add(atual.toString());
-                atual.setLength(0);
-            } else {
-                atual.append(caractere);
-            }
-        }
-
-        colunas.add(atual.toString());
-        return colunas;
-    }
-
-    private static String juntarCategoria(String categoria, String tema) {
-        if (tema == null || tema.trim().isEmpty()) {
-            return categoria.trim();
-        }
-        return categoria.trim() + " - " + tema.trim();
-    }
-
-    private static int indiceRespostaCorreta(String resposta) {
-        if (resposta == null || resposta.trim().isEmpty()) {
-            return 0;
-        }
-        char letra = Character.toUpperCase(resposta.trim().charAt(0));
-        if (letra < 'A' || letra > 'D') {
-            return 0;
-        }
-        return letra - 'A';
-    }
-
-    private static int parseIntSeguro(String valor, int padrao) {
-        try {
-            return Integer.parseInt(valor.trim());
-        } catch (Exception erro) {
-            return padrao;
-        }
+    private static List<Pergunta> carregarPerguntas() {
+        return PERGUNTA_REPOSITORY.listarAtivas();
     }
 
     public Pergunta getPerguntaAtual() {

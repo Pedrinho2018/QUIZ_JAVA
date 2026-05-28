@@ -27,7 +27,7 @@ Empresa Segura e um quiz corporativo sobre golpes digitais com **backend em Java
 O projeto foi mantido leve de proposito:
 
 - sem Spring Boot
-- sem banco de dados
+- com SQLite embarcado para persistir perguntas
 - sem dependencias externas no backend
 - com regras de negocio isoladas em classes Java
 
@@ -35,6 +35,7 @@ O projeto foi mantido leve de proposito:
 
 - `Java`
 - `Servidor HTTP nativo do Java`
+- `SQLite`
 - `HTML`
 - `CSS`
 - `JavaScript`
@@ -54,6 +55,8 @@ src/
     Jogador.java
     Rodada.java
     Placar.java
+  repository/
+    PerguntaRepository.java
   web/
     ServidorWeb.java
 web/
@@ -92,6 +95,10 @@ A interface web segue a referencia visual do projeto com:
 
 ## Como executar
 
+As perguntas sao persistidas no arquivo `data/quiz.db`.
+
+Na primeira execucao, o sistema cria a tabela `perguntas` e importa o conteudo de `data/perguntas_quiz_ciberseguranca_300.csv`.
+
 ### Mais simples
 
 - `executar.bat`: compila e sobe o sistema
@@ -102,13 +109,13 @@ A interface web segue a referencia visual do projeto com:
 ### Compilar manualmente
 
 ```powershell
-javac --release 8 -d build src\app\*.java src\model\*.java src\web\*.java
+javac --release 8 -cp "lib\sqlite-jdbc.jar" -d build src\app\*.java src\model\*.java src\repository\*.java src\web\*.java
 ```
 
 ### Rodar manualmente
 
 ```powershell
-java -cp build app.Main
+java -cp "build;lib\sqlite-jdbc.jar" app.Main
 ```
 
 Depois abra:
@@ -174,7 +181,7 @@ O autoteste roda sem interface e valida:
 Execucao manual:
 
 ```powershell
-java -cp build app.Main --self-test
+java -cp "build;lib\sqlite-jdbc.jar" app.Main --self-test
 ```
 
 ## Objetivo academico

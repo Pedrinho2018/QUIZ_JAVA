@@ -23,7 +23,7 @@ O projeto `Empresa Segura` e uma plataforma de quiz de conscientizacao em cibers
 - `frontend web em HTML, CSS e JavaScript`
 - `execucao principal via Docker`
 
-Hoje o sistema funciona como uma aplicacao web leve, sem banco de dados e sem framework pesado no backend.
+Hoje o sistema funciona como uma aplicacao web leve, com persistencia SQLite para perguntas e sem framework pesado no backend.
 
 ## Objetivo Atual do Projeto
 
@@ -43,6 +43,7 @@ O foco atual do projeto esta em:
 
 - `Java`
 - `ServerSocket` para servidor HTTP proprio
+- `SQLite` para perguntas
 - serializacao JSON manual
 - controle de sessao em memoria por cookie
 
@@ -104,7 +105,7 @@ As sessoes ficam em memoria no processo Java.
 
 Isso significa:
 
-- nao ha persistencia em banco
+- as perguntas sao persistidas em SQLite
 - reiniciar o container limpa as sessoes
 - o sistema e apropriado para apresentacao, estudo e demonstracao
 
@@ -189,6 +190,17 @@ Responsavel por:
 - quantidade de acertos
 - classificacao final
 - mensagem final
+
+### `SQLite`
+
+As perguntas passam a ser carregadas de `data/quiz.db`.
+
+Na primeira execucao:
+
+- a tabela `perguntas` e criada automaticamente
+- o banco e populado a partir do CSV legado
+
+As sessoes, rodada ativa e placar continuam em memoria.
 
 ## Conteudo Atual do Quiz
 

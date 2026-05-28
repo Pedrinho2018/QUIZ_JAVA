@@ -16,6 +16,7 @@ out/
 data-portainer/
 docker-data/
 *.log
+data/quiz.db
 
 server_check.out.txt
 server_check.err.txt

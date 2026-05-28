@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Quiz" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="app.Main" />
+    <module name="QUIZ_JAVA" />
+    <option name="PROGRAM_PARAMETERS" value=" java -cp build:lib/sqlite-jdbc.jar app.Main --self-test" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
