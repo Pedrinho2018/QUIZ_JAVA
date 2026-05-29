@@ -17,23 +17,38 @@ import java.util.List;
 import model.Pergunta;
 import model.PerguntaPersonalizada;
 
+/*
+ * CONCEITO: REPOSITÓRIO
+ * Esta classe isola a camada de dados do restante da aplicação.
+ * Ela sabe onde as perguntas estão armazenadas, como inicializar o SQLite
+ * e como transformar registros em objetos do domínio (Pergunta).
+ *
+ * Assim, Rodada e Placar trabalham com objetos Java e não com SQL direto.
+ */
 public final class PerguntaRepository {
+    // Arquivos físicos usados pela aplicação.
     private static final Path ARQUIVO_CSV = Paths.get("data", "perguntas_quiz_ciberseguranca_300.csv");
     private static final Path ARQUIVO_SQLITE = Paths.get("data", "quiz.db");
     private static final String URL_PADRAO = "jdbc:sqlite:" + ARQUIVO_SQLITE.toString();
 
+    // URL efetiva do banco, podendo vir de variável de ambiente.
     private final String urlBanco;
 
     public PerguntaRepository() {
         this(resolverUrlBanco());
     }
 
+    // Ao criar o repositório, o sistema garante que o banco já esteja pronto para uso.
     public PerguntaRepository(String urlBanco) {
         this.urlBanco = urlBanco;
         carregarDriver();
         inicializarBanco();
     }
 
+    /*
+     * Lê todas as perguntas ativas do banco e converte cada linha
+     * em um objeto PerguntaPersonalizada.
+     */
     public List<Pergunta> listarAtivas() {
         List<Pergunta> perguntas = new ArrayList<Pergunta>();
         String sql = "SELECT categoria, tema, nivel, situacao, pergunta, "
@@ -70,6 +85,7 @@ public final class PerguntaRepository {
         return perguntas;
     }
 
+    // Permite trocar o banco via variável de ambiente sem recompilar o projeto.
     private static String resolverUrlBanco() {
         String urlAmbiente = System.getenv("QUIZ_DATABASE_URL");
         if (urlAmbiente != null && !urlAmbiente.trim().isEmpty()) {
@@ -78,6 +94,7 @@ public final class PerguntaRepository {
         return URL_PADRAO;
     }
 
+    // Carrega o driver JDBC necessário para abrir conexões SQLite.
     private static void carregarDriver() {
         try {
             Class.forName("org.sqlite.JDBC");
@@ -86,6 +103,10 @@ public final class PerguntaRepository {
         }
     }
 
+    /*
+     * Prepara o banco local.
+     * Se a tabela ainda estiver vazia, importa os dados do CSV inicial.
+     */
     private void inicializarBanco() {
         try {
             Path diretorio = ARQUIVO_SQLITE.getParent();
@@ -106,6 +127,7 @@ public final class PerguntaRepository {
         }
     }
 
+    // Cria a tabela principal caso ela ainda não exista.
     private static void criarTabela(Connection conexao) throws SQLException {
         String sql = "CREATE TABLE IF NOT EXISTS perguntas ("
                 + "id INTEGER PRIMARY KEY,"
@@ -132,6 +154,7 @@ public final class PerguntaRepository {
         }
     }
 
+    // Verifica se já existem perguntas no banco antes de importar o CSV.
     private static int contarPerguntas(Connection conexao) throws SQLException {
         try (Statement comando = conexao.createStatement();
                 ResultSet resultado = comando.executeQuery("SELECT COUNT(*) FROM perguntas")) {
@@ -139,6 +162,10 @@ public final class PerguntaRepository {
         }
     }
 
+    /*
+     * Faz a carga inicial do CSV para o SQLite.
+     * Isso permite que o sistema trabalhe depois com consultas SQL mais simples.
+     */
     private static void importarCsv(Connection conexao) {
         if (!Files.exists(ARQUIVO_CSV)) {
             throw new IllegalStateException("Arquivo de perguntas nao encontrado: " + ARQUIVO_CSV);
@@ -201,6 +228,7 @@ public final class PerguntaRepository {
         }
     }
 
+    // Em caso de erro durante a importação, desfaz a transação.
     private static void rollbackSilencioso(Connection conexao) {
         try {
             conexao.rollback();
@@ -208,6 +236,7 @@ public final class PerguntaRepository {
         }
     }
 
+    // Restaura o comportamento padrão da conexão ao final da importação.
     private static void restaurarAutoCommit(Connection conexao) {
         try {
             conexao.setAutoCommit(true);
@@ -215,6 +244,10 @@ public final class PerguntaRepository {
         }
     }
 
+    /*
+     * Parser simples de CSV com separador ';' e suporte a campos entre aspas.
+     * Foi implementado manualmente para ler o formato do arquivo do projeto.
+     */
     private static List<String> separarCsv(String linha) {
         List<String> colunas = new ArrayList<String>();
         StringBuilder atual = new StringBuilder();
@@ -241,6 +274,7 @@ public final class PerguntaRepository {
         return colunas;
     }
 
+    // Remove BOM do UTF-8 e espaços extras.
     private static String removerBom(String valor) {
         if (valor == null) {
             return "";
@@ -248,10 +282,12 @@ public final class PerguntaRepository {
         return valor.replace("\uFEFF", "").trim();
     }
 
+    // Normaliza nulos para string vazia.
     private static String valorTexto(String valor) {
         return valor == null ? "" : valor.trim();
     }
 
+    // Junta categoria e tema em um único rótulo apresentado para o jogador.
     private static String juntarCategoria(String categoria, String tema) {
         if (tema == null || tema.trim().isEmpty()) {
             return valorTexto(categoria);

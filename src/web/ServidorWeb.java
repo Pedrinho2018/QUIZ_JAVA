@@ -29,14 +29,32 @@ import model.Placar;
 import model.Rodada;
 import model.Rodada.ResultadoResposta;
 
+/*
+ * CONCEITO: CAMADA WEB
+ * ServidorWeb expõe o quiz no navegador sem depender de frameworks externos.
+ * Ele recebe requisições HTTP, conversa com as classes de domínio
+ * (Jogador, Rodada, Placar) e devolve HTML, CSS, JS ou JSON.
+ *
+ * A separação importante aqui é:
+ *   - model/    -> regras do negócio
+ *   - repository/ -> acesso a dados
+ *   - web/      -> comunicação com o navegador
+ */
 public final class ServidorWeb {
+    // Nome do cookie usado para identificar a sessão do jogador.
     private static final String COOKIE_NOME = "empresa_segura_sid";
     private static final Path DIRETORIO_PUBLICO = Paths.get("web");
+
+    // Mapa em memória que guarda as sessões ativas do quiz.
     private static final Map<String, SessaoQuiz> SESSOES = new ConcurrentHashMap<String, SessaoQuiz>();
 
     private ServidorWeb() {
     }
 
+    /*
+     * Abre um socket HTTP simples, aceita conexões e delega
+     * cada cliente para uma thread separada.
+     */
     public static void iniciar(int porta) {
         try (ServerSocket servidor = new ServerSocket(porta)) {
             String url = "http://127.0.0.1:" + porta;
@@ -54,6 +72,7 @@ public final class ServidorWeb {
         }
     }
 
+    // Trata o ciclo completo de uma conexão HTTP.
     private static void processarCliente(Socket cliente) {
         try (Socket socket = cliente) {
             socket.setSoTimeout(5000);
@@ -73,6 +92,7 @@ public final class ServidorWeb {
         }
     }
 
+    // Lê a requisição HTTP manualmente: linha inicial, cabeçalhos e corpo.
     private static Requisicao lerRequisicao(InputStream entrada) throws IOException {
         String linhaInicial = lerLinha(entrada);
         if (linhaInicial == null || linhaInicial.trim().isEmpty()) {
@@ -113,6 +133,7 @@ public final class ServidorWeb {
         return new Requisicao(partes[0], partes[1], cabecalhos, corpo);
     }
 
+    // Roteamento das URLs da aplicação.
     private static Resposta tratarRequisicao(Requisicao requisicao) throws IOException {
         try {
             if ("/api/start".equals(requisicao.caminho())) {
@@ -142,6 +163,7 @@ public final class ServidorWeb {
         }
     }
 
+    // Cria uma nova sessão de jogo a partir dos dados enviados pelo formulário inicial.
     private static Resposta iniciarQuiz(Requisicao requisicao) throws IOException {
         exigirMetodo(requisicao, "POST");
         Map<String, String> form = lerFormulario(requisicao.corpoTexto());
@@ -165,6 +187,7 @@ public final class ServidorWeb {
         return resposta;
     }
 
+    // Retorna a tela atual da sessão; se não houver sessão, volta para a tela inicial.
     private static Resposta consultarEstado(Requisicao requisicao) {
         exigirMetodo(requisicao, "GET");
         SessaoQuiz sessao = obterSessao(requisicao);
@@ -174,6 +197,10 @@ public final class ServidorWeb {
         return Resposta.json(200, montarEstadoJson(sessao.getTelaAtual(), sessao));
     }
 
+    /*
+     * Processa a resposta do jogador.
+     * Também calcula timeout comparando o horário atual com o início da pergunta.
+     */
     private static Resposta responderPergunta(Requisicao requisicao) throws IOException {
         exigirMetodo(requisicao, "POST");
         SessaoQuiz sessao = obterSessaoObrigatoria(requisicao);
@@ -199,6 +226,7 @@ public final class ServidorWeb {
         return Resposta.json(200, montarEstadoJson("feedback", sessao));
     }
 
+    // Sai do feedback e prepara a próxima pergunta ou a tela final.
     private static Resposta avancarFluxo(Requisicao requisicao) {
         exigirMetodo(requisicao, "POST");
         SessaoQuiz sessao = obterSessaoObrigatoria(requisicao);
@@ -218,6 +246,7 @@ public final class ServidorWeb {
         return Resposta.json(200, montarEstadoJson("quiz", sessao));
     }
 
+    // Finaliza a rodada imediatamente e entrega o resultado final.
     private static Resposta finalizarQuiz(Requisicao requisicao) {
         exigirMetodo(requisicao, "POST");
         SessaoQuiz sessao = obterSessaoObrigatoria(requisicao);
@@ -232,6 +261,7 @@ public final class ServidorWeb {
         return Resposta.json(200, montarEstadoJson("result", sessao));
     }
 
+    // Remove a sessão atual e permite começar uma nova identificação.
     private static Resposta reiniciarQuiz(Requisicao requisicao) {
         exigirMetodo(requisicao, "POST");
         String sessaoId = requisicao.cookie(COOKIE_NOME);
@@ -241,6 +271,7 @@ public final class ServidorWeb {
         return Resposta.json(200, "{\"screen\":\"identify\"}");
     }
 
+    // Entrega os arquivos estáticos do frontend: HTML, CSS e JavaScript.
     private static Resposta servirArquivoEstatico(Requisicao requisicao) throws IOException {
         String caminhoBruto = requisicao.caminho();
         String caminhoRelativo = "/".equals(caminhoBruto) ? "index.html" : caminhoBruto.substring(1);
@@ -255,6 +286,7 @@ public final class ServidorWeb {
         return Resposta.arquivo(200, tipo, bytes);
     }
 
+    // Define o tipo MIME básico de acordo com a extensão do arquivo.
     private static String descobrirMimeType(Path arquivo) {
         String nome = arquivo.getFileName().toString().toLowerCase();
         if (nome.endsWith(".html")) {
@@ -273,11 +305,13 @@ public final class ServidorWeb {
         return "application/octet-stream";
     }
 
+    // Busca a sessão pelo cookie enviado pelo navegador.
     private static SessaoQuiz obterSessao(Requisicao requisicao) {
         String sessaoId = requisicao.cookie(COOKIE_NOME);
         return sessaoId == null ? null : SESSOES.get(sessaoId);
     }
 
+    // Variante que já falha com erro amigável se não houver sessão ativa.
     private static SessaoQuiz obterSessaoObrigatoria(Requisicao requisicao) {
         SessaoQuiz sessao = obterSessao(requisicao);
         if (sessao == null) {
@@ -286,12 +320,14 @@ public final class ServidorWeb {
         return sessao;
     }
 
+    // Validação simples do método HTTP esperado em cada rota.
     private static void exigirMetodo(Requisicao requisicao, String metodoEsperado) {
         if (!metodoEsperado.equalsIgnoreCase(requisicao.metodo)) {
             throw new IllegalArgumentException("Metodo HTTP nao suportado.");
         }
     }
 
+    // Decodifica o corpo x-www-form-urlencoded enviado pelo frontend.
     private static Map<String, String> lerFormulario(String corpo) throws IOException {
         Map<String, String> valores = new HashMap<String, String>();
         if (corpo == null || corpo.trim().isEmpty()) {
@@ -326,6 +362,7 @@ public final class ServidorWeb {
         }
     }
 
+    // Serializa a resposta HTTP completa para o socket.
     private static void enviarResposta(OutputStream saida, Resposta resposta) throws IOException {
         StringBuilder cabecalho = new StringBuilder();
         cabecalho.append("HTTP/1.1 ").append(resposta.status).append(" ").append(statusTexto(resposta.status)).append("\r\n");
@@ -342,6 +379,7 @@ public final class ServidorWeb {
         saida.flush();
     }
 
+    // Traduz alguns códigos HTTP para o texto padrão da linha de status.
     private static String statusTexto(int status) {
         if (status == 200) {
             return "OK";
@@ -355,6 +393,7 @@ public final class ServidorWeb {
         return "Internal Server Error";
     }
 
+    // Lê uma linha crua da conexão HTTP, ignorando '\r' e parando no '\n'.
     private static String lerLinha(InputStream entrada) throws IOException {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         int atual;
@@ -374,6 +413,10 @@ public final class ServidorWeb {
         return new String(buffer.toByteArray(), StandardCharsets.UTF_8);
     }
 
+    /*
+     * Monta o JSON de estado que o frontend usa para decidir
+     * qual tela renderizar e quais dados mostrar.
+     */
     private static String montarEstadoJson(String tela, SessaoQuiz sessao) {
         if ("welcome".equals(tela)) {
             return "{\"screen\":\"welcome\"}";
@@ -429,6 +472,7 @@ public final class ServidorWeb {
         return json.toString();
     }
 
+    // Converte a pergunta atual em JSON para o frontend.
     private static String montarPerguntaJson(Pergunta pergunta, int numeroPergunta, int totalPerguntas, int tempoRestante) {
         StringBuilder json = new StringBuilder();
         json.append("{");
@@ -454,6 +498,7 @@ public final class ServidorWeb {
         return json.toString();
     }
 
+    // Gera o bloco de feedback após cada resposta.
     private static String montarFeedbackJson(ResultadoResposta resultado) {
         String status;
         String tone;
@@ -489,6 +534,7 @@ public final class ServidorWeb {
         return json.toString();
     }
 
+    // Gera o resumo final do desempenho do jogador.
     private static String montarResultadoJson(Jogador jogador, Rodada rodada) {
         Placar placar = rodada.getPlacar();
         int pontuacaoMaxima = rodada.getPontuacaoMaxima();
@@ -514,6 +560,7 @@ public final class ServidorWeb {
         return json.toString();
     }
 
+    // Escreve um par chave/valor textual no JSON manual.
     private static void adicionarCampo(StringBuilder json, String chave, String valor) {
         json.append("\"").append(escaparJson(chave)).append("\":\"").append(escaparJson(valor)).append("\"");
     }
